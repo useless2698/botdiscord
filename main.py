@@ -19,12 +19,47 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from myserver import server_on
+from PIL import Image, ImageDraw, ImageFont
+import requests
+from io import BytesIO
+
 
 # Debug path
 print(sys.path)
 
 # ตั้งค่าบอท
 bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
+
+def create_welcome_image(member):
+    """ สร้างรูปต้อนรับแบบน่ารัก 💕 """
+    bg_path = "welcome_bg.jpg"  # เปลี่ยนเป็นพื้นหลังที่ต้องการ
+    font_path = "font.ttf"  # เปลี่ยนเป็นฟอนต์ที่ใช้
+    avatar_size = 150
+
+    # โหลดพื้นหลัง
+    bg = Image.open(bg_path).convert("RGBA")
+    draw = ImageDraw.Draw(bg)
+
+    # โหลดรูปโปรไฟล์จาก URL
+    avatar_url = member.avatar.url if member.avatar else member.default_avatar.url
+    response = requests.get(avatar_url)
+    avatar = Image.open(BytesIO(response.content)).convert("RGBA")
+    avatar = avatar.resize((avatar_size, avatar_size))
+
+    # วาดวงกลมสำหรับรูปโปรไฟล์
+    mask = Image.new("L", (avatar_size, avatar_size), 0)
+    mask_draw = ImageDraw.Draw(mask)
+    mask_draw.ellipse((0, 0, avatar_size, avatar_size), fill=255)
+    bg.paste(avatar, (200, 50), mask)  # ตำแหน่งที่วางรูป
+
+    # ใส่ข้อความ
+    font = ImageFont.truetype(font_path, 40)
+    draw.text((180, 220), f"Welcome {member.display_name}!", font=font, fill="white")
+
+    # บันทึกภาพ
+    img_path = f"welcome_{member.id}.png"
+    bg.save(img_path)
+    return img_path
 
 
 # ==============================
@@ -39,62 +74,62 @@ async def on_ready():
 
 @bot.event
 async def on_member_join(member):
-    channel = bot.get_channel(1243402785161216141)
-    text = f"welcome to the feild on Server, {member.mention}!"
+    """ แจ้งเตือนคนเข้าเซิร์ฟเวอร์ พร้อมแยกช่องแจ้งเตือนแต่ละเซิร์ฟ """
+    guild_id = member.guild.id
+    welcome_channel_id = server_settings.get(guild_id, {}).get("welcome_channel")
 
-    embed = discord.Embed(title='Welcome to the field!',
-                          description=text,
-                          color=0x66FFE1)
+    if welcome_channel_id:
+        channel = bot.get_channel(welcome_channel_id)
+        image_path = create_welcome_image(member)
+        file = discord.File(image_path, filename="welcome.png")
 
-    await channel.send(text)
-    await channel.send(embed=embed)
-    await member.send(text)
-
+        await channel.send(
+            f"🎉 {member.mention} joined the server! 🌟\nNow we have {member.guild.member_count} members!",
+            file=file
+        )
 
 @bot.event
 async def on_member_remove(member):
-    channel = bot.get_channel(1243402785161216141)
-    text = f"{member.name} has left the Feild!"
+    """ แจ้งเตือนคนออกจากเซิร์ฟเวอร์ พร้อมแยกช่องแจ้งเตือนแต่ละเซิร์ฟ """
+    guild_id = member.guild.id
+    goodbye_channel_id = server_settings.get(guild_id, {}).get("goodbye_channel")
 
-    embed = discord.Embed(title='Left the field!',
-                          description=text,
-                          color=0xFF0032)
-
-    await channel.send(text)
-    await channel.send(embed=embed)
-    await member.send(text)
+    if goodbye_channel_id:
+        channel = bot.get_channel(goodbye_channel_id)
+        await channel.send(
+            f"💔 {member.display_name} has left the server...\nNow we have {member.guild.member_count} members left."
+        )
 
 
 @bot.event
 async def on_voice_state_update(member, before, after):
-    channel = bot.get_channel(1259688382863245393)
+    """ แจ้งเตือนเข้า/ออกห้องเสียงด้วย Embed น่ารัก ใช้ชื่อเล่นและโปรไฟล์ """
+    guild = member.guild
+    channel = discord.utils.get(guild.text_channels, name="voice-log")  # หาช่อง #voice-log
+
     if not channel:
-        print("❌ ไม่พบแชแนล! ตรวจสอบว่า Channel ID ถูกต้อง")
-        return
+        return  # ไม่มีช่อง ไม่ส่ง
 
-    thailand_time = datetime.now(timezone.utc) + timedelta(hours=7)
-    formatted_time = thailand_time.strftime("%Y-%m-%d %H:%M:%S")
+    nickname = member.display_name  # ใช้ชื่อเล่นในเซิฟ (nickname ถ้ามี, ถ้าไม่มีใช้ username)
+    avatar_url = member.avatar.url if member.avatar else member.default_avatar.url
+    time_now = datetime.now().strftime("%H:%M:%S")
 
+    embed = discord.Embed(color=0xFFB6C1)  # สีชมพูอ่อน
+
+    # ตรวจสอบว่าเข้าหรือออก
     if before.channel is None and after.channel is not None:
-        embed = discord.Embed(
-            title="🎙️ เข้าห้องเสียง",
-            description=f"**{member.name}** เข้าห้องเสียง **{after.channel.name}**",
-            color=0x66FFE1)
+        embed.title = "🎧 เข้าห้องเสียงแล้ว~"
+        embed.description = f"**{nickname}** ได้เข้าร่วมห้อง **{after.channel.name}** นะคะ~ 🎀"
     elif before.channel is not None and after.channel is None:
-        embed = discord.Embed(
-            title="🎤 ออกจากห้องเสียง",
-            description=f"**{member.name}** ออกจากห้องเสียง **{before.channel.name}**",
-            color=0xFF0032)
-    elif before.channel != after.channel:
-        embed = discord.Embed(
-            title="🔄 ย้ายห้องเสียง",
-            description=f"**{member.name}** ย้ายจากห้องเสียง **{before.channel.name}** ไปยังห้องเสียง **{after.channel.name}**",
-            color=0xFFD800)
+        embed.title = "🚪 ออกจากห้องเสียงแล้ว~"
+        embed.description = f"**{nickname}** ออกจากห้อง **{before.channel.name}** ไปแล้วน้า~ 😢"
     else:
-        return
+        return  # ถ้าแค่ย้ายห้องหรือเปลี่ยน mute ไม่แจ้ง
 
-    embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
-    embed.set_footer(text=f"🕒 เวลา: {formatted_time} (TH)")
+    embed.set_thumbnail(url=avatar_url)  # รูปโปรไฟล์
+    embed.add_field(name="⏰ เวลา", value=f"{time_now} น.", inline=True)
+    embed.set_footer(text="ขอให้สนุกกับเสียงน้า~ 💕")
+
     await channel.send(embed=embed)
 
 
@@ -159,7 +194,7 @@ async def on_message(message):
 async def jokecommand(interaction: discord.Interaction):
     jokes = [
         "ทำไมผีไม่กินข้าว? ... เพราะมันกลัว 'ข้าวผี'~ 👻🍚",
-        "รู้มั้ยว่าน้องแมวชอบเครื่องดื่มอะไร~? ... มิ๊ลค์ทีสิ~ เมี๊ยวว~ 🐱🧋",
+        "ทำไมองคุลีมาร วิ่งไล่ตาม พระพุ?ะเจ้าไม่ทัน...เพราะคุณย่าเคยพูดเอาไว้ Clock up!!!",
         "ทำไมเป็ดถึงไม่ชอบทะเล~? ... เพราะมันมีคลื่น (เครียด~ 😵‍💫) ฮิๆ~"
     ]
     await interaction.response.send_message(random.choice(jokes))
