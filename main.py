@@ -281,6 +281,51 @@ async def test(ctx, arg):
     await ctx.send(f"มุแง~ หนูพิมพ์ตามละนะ: {arg} ✨")
 
 
+server_settings = {}
+
+# ✅ ตั้งค่าช่องต้อนรับ
+@bot.command()
+async def set_welcome_channel(ctx, channel: discord.TextChannel):
+    """ ตั้งค่าช่องแจ้งเตือนต้อนรับ """
+    if ctx.guild.id not in server_settings:
+        server_settings[ctx.guild.id] = {}
+    server_settings[ctx.guild.id]["welcome_channel"] = channel.id
+    await ctx.send(f"✅ ตั้งค่าช่องต้อนรับเป็น {channel.mention} แล้ว!")
+
+# ✅ ตั้งค่าช่องแจ้งเตือนคนออก
+@bot.command()
+async def set_goodbye_channel(ctx, channel: discord.TextChannel):
+    """ ตั้งค่าช่องแจ้งเตือนสมาชิกออก """
+    if ctx.guild.id not in server_settings:
+        server_settings[ctx.guild.id] = {}
+    server_settings[ctx.guild.id]["goodbye_channel"] = channel.id
+    await ctx.send(f"✅ ตั้งค่าช่องแจ้งเตือนคนออกเป็น {channel.mention} แล้ว!")
+
+# ✅ ตั้งค่าช่องแจ้งเตือนการใช้เสียง
+@bot.command()
+async def set_voice_channel(ctx, channel: discord.TextChannel):
+    """ ตั้งค่าช่องแจ้งเตือนเข้า/ออกห้องเสียง """
+    if ctx.guild.id not in server_settings:
+        server_settings[ctx.guild.id] = {}
+    server_settings[ctx.guild.id]["voice_channel"] = channel.id
+    await ctx.send(f"✅ ตั้งค่าช่องแจ้งเตือนการใช้เสียงเป็น {channel.mention} แล้ว!")
+
+# ✅ ตรวจสอบค่าที่ตั้งไว้
+@bot.command()
+async def show_settings(ctx):
+    """ แสดงค่าการตั้งค่าของเซิร์ฟ """
+    settings = server_settings.get(ctx.guild.id, {})
+    welcome = f"<#{settings.get('welcome_channel', '❌ ไม่ได้ตั้งค่า')}>"
+    goodbye = f"<#{settings.get('goodbye_channel', '❌ ไม่ได้ตั้งค่า')}>"
+    voice = f"<#{settings.get('voice_channel', '❌ ไม่ได้ตั้งค่า')}>"
+
+    embed = discord.Embed(title="🔧 การตั้งค่าของเซิร์ฟ", color=0xFFC0CB)
+    embed.add_field(name="👋 ช่องต้อนรับ", value=welcome, inline=False)
+    embed.add_field(name="💔 ช่องแจ้งเตือนออก", value=goodbye, inline=False)
+    embed.add_field(name="🎤 ช่องแจ้งเตือนใช้เสียง", value=voice, inline=False)
+
+    await ctx.send(embed=embed)
+    
 # ==============================
 # 🌀 RUN BOT
 # ==============================
