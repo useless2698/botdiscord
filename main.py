@@ -1,22 +1,40 @@
+from dotenv import load_dotenv
 import os
+
+dotenv_path = ".env"
+load_dotenv(dotenv_path)
+
+token = os.getenv("TOKEN")
+if token:
+    print("TOKEN จาก .env คือ:", token)
+else:
+    print("ไม่พบค่า TOKEN ในไฟล์ .env")
+
+
+import sys
+import random
+from datetime import datetime, timezone, timedelta
+
 import discord
 from discord.ext import commands
 from discord import app_commands
-
-import sys
-print(sys.path)
 from myserver import server_on
 
+# Debug path
+print(sys.path)
 
+# ตั้งค่าบอท
 bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
 
 
+# ==============================
+# 💫 EVENT ZONE
+# ==============================
 @bot.event
 async def on_ready():
     print("Bot online!")
     synced = await bot.tree.sync()
     print(f"{len(synced)} command(s)")
-
 
 
 @bot.event
@@ -28,34 +46,28 @@ async def on_member_join(member):
                           description=text,
                           color=0x66FFE1)
 
-
     await channel.send(text)
-    await channel.send(Embed = embed)
+    await channel.send(embed=embed)
     await member.send(text)
 
 
 @bot.event
 async def on_member_remove(member):
     channel = bot.get_channel(1243402785161216141)
-    text = f"{member.name}has left the Feild!"
+    text = f"{member.name} has left the Feild!"
 
-    emmbed = discord.embed(title='left the feild!',
-                           description=text,
-                           color=0xFF0032)
+    embed = discord.Embed(title='Left the field!',
+                          description=text,
+                          color=0xFF0032)
 
     await channel.send(text)
-    await channel.send(embed=emmbed)
+    await channel.send(embed=embed)
     await member.send(text)
 
-import discord
-from discord.ext import commands
-from datetime import datetime, timezone, timedelta
 
 @bot.event
 async def on_voice_state_update(member, before, after):
-    channel_id = 1259688382863245393
-    channel = bot.get_channel(channel_id)
-
+    channel = bot.get_channel(1259688382863245393)
     if not channel:
         print("❌ ไม่พบแชแนล! ตรวจสอบว่า Channel ID ถูกต้อง")
         return
@@ -68,31 +80,27 @@ async def on_voice_state_update(member, before, after):
             title="🎙️ เข้าห้องเสียง",
             description=f"**{member.name}** เข้าห้องเสียง **{after.channel.name}**",
             color=0x66FFE1)
-        embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
-        embed.set_footer(text=f"🕒 เวลา: {formatted_time} (TH)")
-        await channel.send(embed=embed)
-
     elif before.channel is not None and after.channel is None:
         embed = discord.Embed(
             title="🎤 ออกจากห้องเสียง",
             description=f"**{member.name}** ออกจากห้องเสียง **{before.channel.name}**",
             color=0xFF0032)
-        embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
-        embed.set_footer(text=f"🕒 เวลา: {formatted_time} (TH)")
-        await channel.send(embed=embed)
-
     elif before.channel != after.channel:
         embed = discord.Embed(
             title="🔄 ย้ายห้องเสียง",
             description=f"**{member.name}** ย้ายจากห้องเสียง **{before.channel.name}** ไปยังห้องเสียง **{after.channel.name}**",
             color=0xFFD800)
-        embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
-        embed.set_footer(text=f"🕒 เวลา: {formatted_time} (TH)")
-        await channel.send(embed=embed)
+    else:
+        return
+
+    embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
+    embed.set_footer(text=f"🕒 เวลา: {formatted_time} (TH)")
+    await channel.send(embed=embed)
 
 
-import random
-
+# ==============================
+# 🌸 ON_MESSAGE NAKAMA
+# ==============================
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
@@ -123,7 +131,6 @@ async def on_message(message):
     elif mes in ['รักนะ', 'คิดถึง']:
         await message.channel.send(f"แงง~ เขินเลยอ่ะ {message.author.name} เราก็รักน้าา 💗")
 
-    # 🧸 จิปาถะน่ารัก
     elif 'ชอบกินอะไร' in mes:
         await message.channel.send("เราชอบของหวานล่ะ~ พวกพุดดิ้ง ช็อกโกแลต หรือเค้กสตรอเบอร์รี่ก็เลิฟสุดๆ 🍰🍓")
 
@@ -144,8 +151,10 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-import random
 
+# ==============================
+# 💖 SLASH COMMANDS
+# ==============================
 @bot.tree.command(name='joke', description='เรื่องตลกของสาวน้อย~')
 async def jokecommand(interaction: discord.Interaction):
     jokes = [
@@ -155,6 +164,7 @@ async def jokecommand(interaction: discord.Interaction):
     ]
     await interaction.response.send_message(random.choice(jokes))
 
+
 @bot.tree.command(name='fact', description='สาระเล็กๆ จากสาวน้อย 🧠✨')
 async def factcommand(interaction: discord.Interaction):
     facts = [
@@ -163,6 +173,7 @@ async def factcommand(interaction: discord.Interaction):
         "คนเรากระพริบตาประมาณ 20,000 ครั้งต่อวันเลยนะ! 👁️✨"
     ]
     await interaction.response.send_message(random.choice(facts))
+
 
 @bot.tree.command(name='mood', description='เช็คอารมณ์ของสาวน้อยตอนนี้ 🩷')
 async def moodcommand(interaction: discord.Interaction):
@@ -175,49 +186,16 @@ async def moodcommand(interaction: discord.Interaction):
     await interaction.response.send_message(random.choice(moods))
 
 
-@bot.command()
-async def ช่วยด้วย(ctx):
-    print(ctx.author)
-    await ctx.send(f"หนูอยู่ตรงนี้แล้วน้า~ พร้อมช่วยเสมอเลย {ctx.author.name} จ๋า~ 💖")
-
-@bot.command()
-async def test(ctx, arg):
-    await ctx.send(f"มุแง~ หนูพิมพ์ตามละนะ: {arg} ✨")
-
 @bot.tree.command(name='hellobot', description='Replies with hello')
-async def Hellobot(interaction: discord.Interaction):
+async def hellobot(interaction: discord.Interaction):
     await interaction.response.send_message("หวัดดีจ้า~ มีอะไรให้สาวน้อยช่วยมั้ยน้า~? 💕")
 
-@bot.tree.command(name='name')
+
+@bot.tree.command(name='name', description='แนะนำตัวให้หน่อยสิ~')
 @app_commands.describe(name="ชื่ออะไรจ๊ะ?")
-async def namecommand(interaction, name: str):
+async def namecommand(interaction: discord.Interaction, name: str):
     await interaction.response.send_message(f"ยินดีที่ได้รู้จักน้า~ {name} คุงง 💞")
 
-from datetime import datetime, timezone, timedelta
-
-@bot.tree.command(name='help', description='แสดงคำสั่งบอท')
-async def helpcommand(interaction: discord.Interaction):
-    thailand_time = datetime.now(timezone.utc) + timedelta(hours=7)
-    formatted_time = thailand_time.strftime("%Y-%m-%d %H:%M:%S")
-
-    embed = discord.Embed(
-        title='คำสั่งของหนูเอง~ 💫',
-        description='นี่คือคำสั่งทั้งหมดที่สาวน้อยคนนี้ทำได้นะคะ ✨',
-        color=0xFFD1DC
-    )
-    embed.add_field(name='/hellobot 💬', value='ทักทายกับหนูได้น้า~', inline=False)
-    embed.add_field(name='/name 💖', value='หนูจะทักทายชื่อที่พี่บอกมา~', inline=False)
-    embed.add_field(name='/help 🌸', value='เอ๋? ใช้ไม่เป็นเหรอ~ งั้นอ่านตรงนี้เลยน้า~', inline=False)
-    embed.set_footer(text=f"เวลาในประเทศไทยตอนนี้: {formatted_time} ⏰")
-
-    await interaction.response.send_message(embed=embed)
-
-@bot.tree.command(name='name')
-@app_commands.describe(name="=ชื่ออะไรจ้ะ?")
-async def namecommand(interaction, name : str):
-    await interaction.response.send_message(f"ดีฮ้าฟฟ {name}")
-
-from datetime import datetime, timezone, timedelta
 
 @bot.tree.command(name='help', description='แสดงคำสั่งบอท')
 async def helpcommand(interaction: discord.Interaction):
@@ -232,38 +210,44 @@ async def helpcommand(interaction: discord.Interaction):
 
     embed.add_field(
         name='🌟 คำสั่งพื้นฐาน',
-        value=(
-            "`!ช่วยด้วย` — เรียกสาวน้อยให้มาช่วยทันทีเลยจ้า~\n"
-            "`!test <ข้อความ>` — พิมพ์อะไรมาหนูก็จะพูดตามเลย~\n"
-            "`/hellobot` — ทักทายหนูได้เลยนะ~ หนูไม่กัดน้า 🍭\n"
-            "`/name <ชื่อ>` — หนูจะทักชื่อที่พี่พิมพ์มาอย่างน่ารักเลยล่ะ 💬"
-        ),
+        value="`!ช่วยด้วย`, `!test <ข้อความ>`, `/hellobot`, `/name <ชื่อ>`",
         inline=False
     )
 
     embed.add_field(
         name='🎈 คำสั่งถามเล่นๆ จิปาถะ',
-        value=(
-            "`/joke` — ฟังมุกตลกกุ๊กกิ๊กจากหนู~ ฮ่าๆ\n"
-            "`/fact` — สาวน้อยมาพร้อมสาระวันละนิด~ 🧠\n"
-            "`/mood` — รู้มั้ยตอนนี้หนูรู้สึกยังไง~ มาดูกัน 💓"
-        ),
+        value="`/joke`, `/fact`, `/mood`",
         inline=False
     )
 
     embed.add_field(
         name='🎀 สไตล์ของสาวน้อยบอท 🎀',
         value=(
-            "บอทตัวนี้จะพูดแบบนุ่มฟู~ ติดหวาน ๆ น่ารัก ๆ นะคะ~ 🍓\n"
-            "ทุกคำสั่งจะตอบกลับด้วยอารมณ์ของสาวน้อยวัยใส ขี้เล่นนิด ๆ 💫\n"
-            "เหมาะกับคนที่อยากได้เพื่อนคุยในแบบเมี๊ยว~ งุงิ~ 💕"
+            "บอทนี้จะพูดแบบน่ารัก นุ่มฟู เหมือนสาวน้อยวัยใสค่ะ~\n"
+            "ลองเล่นกับเราเยอะๆ น้า~ งุงิ~ 💕"
         ),
         inline=False
     )
 
     embed.set_footer(text=f"⌛ เวลาไทยตอนนี้: {formatted_time}")
     await interaction.response.send_message(embed=embed)
-    
-server_on()
 
+
+# ==============================
+# 📢 TEXT COMMANDS
+# ==============================
+@bot.command()
+async def ช่วยด้วย(ctx):
+    await ctx.send(f"หนูอยู่ตรงนี้แล้วน้า~ พร้อมช่วยเสมอเลย {ctx.author.name} จ๋า~ 💖")
+
+
+@bot.command()
+async def test(ctx, arg):
+    await ctx.send(f"มุแง~ หนูพิมพ์ตามละนะ: {arg} ✨")
+
+
+# ==============================
+# 🌀 RUN BOT
+# ==============================
+server_on()
 bot.run(os.getenv('TOKEN'))
