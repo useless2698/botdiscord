@@ -220,8 +220,6 @@ async def namecommand(interaction: discord.Interaction, name: str):
 
 @bot.tree.command(name='help', description='แสดงคำสั่งบอท')
 async def helpcommand(interaction: discord.Interaction):
-    await interaction.response.defer()  # บอก Discord ว่ารอก่อนน้า
-
     thailand_time = datetime.now(timezone.utc) + timedelta(hours=7)
     formatted_time = thailand_time.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -230,14 +228,28 @@ async def helpcommand(interaction: discord.Interaction):
         description='ฮัลโหล~ นี่คือคำสั่งทั้งหมดที่หนูทำได้น้า~ ลองเล่นดูได้นะพี่คะ! 💖',
         color=0xFFC0CB
     )
-    embed.add_field(name='🌟 คำสั่งพื้นฐาน', value="`!ช่วยด้วย`, `!test <ข้อความ>`, `/hellobot`, `/name <ชื่อ>`", inline=False)
-    embed.add_field(name='🎈 คำสั่งถามเล่นๆ จิปาถะ', value="`/joke`, `/fact`, `/mood`", inline=False)
-    embed.add_field(name='🎀 สไตล์ของสาวน้อยบอท 🎀',
-                    value="บอทนี้จะพูดแบบน่ารัก นุ่มฟู เหมือนสาวน้อยวัยใสค่ะ~ ลองเล่นกับเราเยอะๆ น้า~ งุงิ~ 💕",
-                    inline=False)
-    embed.set_footer(text=f"⌛ เวลาไทยตอนนี้: {formatted_time}")
 
-    await interaction.followup.send(embed=embed)  # ส่ง embed หลัง defer
+    embed.add_field(
+        name='🌟 คำสั่งพื้นฐาน (Prefix Commands)',
+        value="`!ช่วยด้วย`, `!test <ข้อความ>`, `!set_welcome_channel #ช่อง`, `!set_goodbye_channel #ช่อง`,\n"
+              "`!set_voice_channel #ช่อง`, `!show_settings`",
+        inline=False
+    )
+
+    embed.add_field(
+        name='🎈 คำสั่ง Slash Commands',
+        value="`/hellobot`, `/name <ชื่อ>`, `/joke`, `/fact`, `/mood`, `/help`",
+        inline=False
+    )
+
+    embed.add_field(
+        name='🎀 สไตล์ของสาวน้อยบอท 🎀',
+        value="บอทนี้จะพูดแบบน่ารัก นุ่มฟู เหมือนสาวน้อยวัยใสค่ะ~ ลองเล่นกับเราเยอะๆ น้า~ งุงิ~ 💕",
+        inline=False
+    )
+
+    embed.set_footer(text=f"⌛ เวลาไทยตอนนี้: {formatted_time}")
+    await interaction.response.send_message(embed=embed)
 
 # ==============================
 # 🛠️ TEXT COMMANDS (PREFIX)
