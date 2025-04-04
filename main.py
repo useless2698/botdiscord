@@ -1,6 +1,24 @@
+# ==============================
+# 🧁 IMPORT MODULES
+# ==============================
 from dotenv import load_dotenv
 import os
+import sys
+import random
+from datetime import datetime, timezone, timedelta
+import requests
+from io import BytesIO
+from PIL import Image, ImageDraw, ImageFont
 
+import discord
+from discord.ext import commands
+from discord import app_commands
+
+from myserver import server_on  # ส่วนนี้น่าจะเปิด web server (เช่น keep alive)
+
+# ==============================
+# 🎀 LOAD .env AND TOKEN
+# ==============================
 dotenv_path = ".env"
 load_dotenv(dotenv_path)
 
@@ -10,60 +28,45 @@ if token:
 else:
     print("ไม่พบค่า TOKEN ในไฟล์ .env")
 
-
-import sys
-import random
-from datetime import datetime, timezone, timedelta
-
-import discord
-from discord.ext import commands
-from discord import app_commands
-from myserver import server_on
-from PIL import Image, ImageDraw, ImageFont
-import requests
-from io import BytesIO
-
-
-# Debug path
-print(sys.path)
-
-# ตั้งค่าบอท
+# ==============================
+# 🌸 DISCORD BOT SETUP
+# ==============================
 bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
+server_settings = {}
 
+print(sys.path)  # Debug path
+
+# ==============================
+# 💖 FUNCTION: WELCOME IMAGE
+# ==============================
 def create_welcome_image(member):
     """ สร้างรูปต้อนรับแบบน่ารัก 💕 """
-    bg_path = "welcome_bg.jpg"  # เปลี่ยนเป็นพื้นหลังที่ต้องการ
-    font_path = "font.ttf"  # เปลี่ยนเป็นฟอนต์ที่ใช้
+    bg_path = "welcome_bg.jpg"
+    font_path = "font.ttf"
     avatar_size = 150
 
-    # โหลดพื้นหลัง
     bg = Image.open(bg_path).convert("RGBA")
     draw = ImageDraw.Draw(bg)
 
-    # โหลดรูปโปรไฟล์จาก URL
     avatar_url = member.avatar.url if member.avatar else member.default_avatar.url
     response = requests.get(avatar_url)
     avatar = Image.open(BytesIO(response.content)).convert("RGBA")
     avatar = avatar.resize((avatar_size, avatar_size))
 
-    # วาดวงกลมสำหรับรูปโปรไฟล์
     mask = Image.new("L", (avatar_size, avatar_size), 0)
     mask_draw = ImageDraw.Draw(mask)
     mask_draw.ellipse((0, 0, avatar_size, avatar_size), fill=255)
-    bg.paste(avatar, (200, 50), mask)  # ตำแหน่งที่วางรูป
+    bg.paste(avatar, (200, 50), mask)
 
-    # ใส่ข้อความ
     font = ImageFont.truetype(font_path, 40)
     draw.text((180, 220), f"Welcome {member.display_name}!", font=font, fill="white")
 
-    # บันทึกภาพ
     img_path = f"welcome_{member.id}.png"
     bg.save(img_path)
     return img_path
 
-
 # ==============================
-# 💫 EVENT ZONE
+# 🌟 BOT EVENTS
 # ==============================
 @bot.event
 async def on_ready():
@@ -71,10 +74,8 @@ async def on_ready():
     synced = await bot.tree.sync()
     print(f"{len(synced)} command(s)")
 
-
 @bot.event
 async def on_member_join(member):
-    """ แจ้งเตือนคนเข้าเซิร์ฟเวอร์ พร้อมแยกช่องแจ้งเตือนแต่ละเซิร์ฟ """
     guild_id = member.guild.id
     welcome_channel_id = server_settings.get(guild_id, {}).get("welcome_channel")
 
@@ -82,7 +83,6 @@ async def on_member_join(member):
         channel = bot.get_channel(welcome_channel_id)
         image_path = create_welcome_image(member)
         file = discord.File(image_path, filename="welcome.png")
-
         await channel.send(
             f"🎉 {member.mention} joined the server! 🌟\nNow we have {member.guild.member_count} members!",
             file=file
@@ -90,7 +90,6 @@ async def on_member_join(member):
 
 @bot.event
 async def on_member_remove(member):
-    """ แจ้งเตือนคนออกจากเซิร์ฟเวอร์ พร้อมแยกช่องแจ้งเตือนแต่ละเซิร์ฟ """
     guild_id = member.guild.id
     goodbye_channel_id = server_settings.get(guild_id, {}).get("goodbye_channel")
 
@@ -100,23 +99,18 @@ async def on_member_remove(member):
             f"💔 {member.display_name} has left the server...\nNow we have {member.guild.member_count} members left."
         )
 
-
 @bot.event
 async def on_voice_state_update(member, before, after):
-    """ แจ้งเตือนเข้า/ออกห้องเสียงด้วย Embed น่ารัก ใช้ชื่อเล่นและโปรไฟล์ """
     guild = member.guild
-    channel = discord.utils.get(guild.text_channels, name="voice-log")  # หาช่อง #voice-log
-
+    channel = discord.utils.get(guild.text_channels, name="voice-log")
     if not channel:
-        return  # ไม่มีช่อง ไม่ส่ง
+        return
 
-    nickname = member.display_name  # ใช้ชื่อเล่นในเซิฟ (nickname ถ้ามี, ถ้าไม่มีใช้ username)
+    nickname = member.display_name
     avatar_url = member.avatar.url if member.avatar else member.default_avatar.url
     time_now = datetime.now().strftime("%H:%M:%S")
 
-    embed = discord.Embed(color=0xFFB6C1)  # สีชมพูอ่อน
-
-    # ตรวจสอบว่าเข้าหรือออก
+    embed = discord.Embed(color=0xFFB6C1)
     if before.channel is None and after.channel is not None:
         embed.title = "🎧 เข้าห้องเสียงแล้ว~"
         embed.description = f"**{nickname}** ได้เข้าร่วมห้อง **{after.channel.name}** นะคะ~ 🎀"
@@ -124,17 +118,15 @@ async def on_voice_state_update(member, before, after):
         embed.title = "🚪 ออกจากห้องเสียงแล้ว~"
         embed.description = f"**{nickname}** ออกจากห้อง **{before.channel.name}** ไปแล้วน้า~ 😢"
     else:
-        return  # ถ้าแค่ย้ายห้องหรือเปลี่ยน mute ไม่แจ้ง
+        return
 
-    embed.set_thumbnail(url=avatar_url)  # รูปโปรไฟล์
+    embed.set_thumbnail(url=avatar_url)
     embed.add_field(name="⏰ เวลา", value=f"{time_now} น.", inline=True)
     embed.set_footer(text="ขอให้สนุกกับเสียงน้า~ 💕")
-
     await channel.send(embed=embed)
 
-
 # ==============================
-# 🌸 ON_MESSAGE NAKAMA
+# 🎀 TEXT INTERACTION RESPONSES
 # ==============================
 @bot.event
 async def on_message(message):
@@ -142,8 +134,8 @@ async def on_message(message):
         return
 
     mes = message.content.lower()
-
     greetings = ['สวัสดี', 'หวัดดี', 'ไฮๆ']
+
     if mes in greetings:
         responses = [
             f"หวัดดีค่าา~ วันนี้อากาศดีเนอะ {message.author.name} ☀️",
@@ -186,9 +178,8 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-
 # ==============================
-# 💖 SLASH COMMANDS
+# 💫 SLASH COMMANDS
 # ==============================
 @bot.tree.command(name='joke', description='เรื่องตลกของสาวน้อย~')
 async def jokecommand(interaction: discord.Interaction):
@@ -199,7 +190,6 @@ async def jokecommand(interaction: discord.Interaction):
     ]
     await interaction.response.send_message(random.choice(jokes))
 
-
 @bot.tree.command(name='fact', description='สาระเล็กๆ จากสาวน้อย 🧠✨')
 async def factcommand(interaction: discord.Interaction):
     facts = [
@@ -208,7 +198,6 @@ async def factcommand(interaction: discord.Interaction):
         "คนเรากระพริบตาประมาณ 20,000 ครั้งต่อวันเลยนะ! 👁️✨"
     ]
     await interaction.response.send_message(random.choice(facts))
-
 
 @bot.tree.command(name='mood', description='เช็คอารมณ์ของสาวน้อยตอนนี้ 🩷')
 async def moodcommand(interaction: discord.Interaction):
@@ -220,17 +209,14 @@ async def moodcommand(interaction: discord.Interaction):
     ]
     await interaction.response.send_message(random.choice(moods))
 
-
 @bot.tree.command(name='hellobot', description='Replies with hello')
 async def hellobot(interaction: discord.Interaction):
     await interaction.response.send_message("หวัดดีจ้า~ มีอะไรให้สาวน้อยช่วยมั้ยน้า~? 💕")
-
 
 @bot.tree.command(name='name', description='แนะนำตัวให้หน่อยสิ~')
 @app_commands.describe(name="ชื่ออะไรจ๊ะ?")
 async def namecommand(interaction: discord.Interaction, name: str):
     await interaction.response.send_message(f"ยินดีที่ได้รู้จักน้า~ {name} คุงง 💞")
-
 
 @bot.tree.command(name='help', description='แสดงคำสั่งบอท')
 async def helpcommand(interaction: discord.Interaction):
@@ -242,78 +228,51 @@ async def helpcommand(interaction: discord.Interaction):
         description='ฮัลโหล~ นี่คือคำสั่งทั้งหมดที่หนูทำได้น้า~ ลองเล่นดูได้นะพี่คะ! 💖',
         color=0xFFC0CB
     )
-
-    embed.add_field(
-        name='🌟 คำสั่งพื้นฐาน',
-        value="`!ช่วยด้วย`, `!test <ข้อความ>`, `/hellobot`, `/name <ชื่อ>`",
-        inline=False
-    )
-
-    embed.add_field(
-        name='🎈 คำสั่งถามเล่นๆ จิปาถะ',
-        value="`/joke`, `/fact`, `/mood`",
-        inline=False
-    )
-
-    embed.add_field(
-        name='🎀 สไตล์ของสาวน้อยบอท 🎀',
-        value=(
-            "บอทนี้จะพูดแบบน่ารัก นุ่มฟู เหมือนสาวน้อยวัยใสค่ะ~\n"
-            "ลองเล่นกับเราเยอะๆ น้า~ งุงิ~ 💕"
-        ),
-        inline=False
-    )
-
+    embed.add_field(name='🌟 คำสั่งพื้นฐาน', value="`!ช่วยด้วย`, `!test <ข้อความ>`, `/hellobot`, `/name <ชื่อ>`", inline=False)
+    embed.add_field(name='🎈 คำสั่งถามเล่นๆ จิปาถะ', value="`/joke`, `/fact`, `/mood`", inline=False)
+    embed.add_field(name='🎀 สไตล์ของสาวน้อยบอท 🎀',
+                    value="บอทนี้จะพูดแบบน่ารัก นุ่มฟู เหมือนสาวน้อยวัยใสค่ะ~ ลองเล่นกับเราเยอะๆ น้า~ งุงิ~ 💕",
+                    inline=False)
     embed.set_footer(text=f"⌛ เวลาไทยตอนนี้: {formatted_time}")
     await interaction.response.send_message(embed=embed)
 
-
 # ==============================
-# 📢 TEXT COMMANDS
+# 🛠️ TEXT COMMANDS (PREFIX)
 # ==============================
 @bot.command()
 async def ช่วยด้วย(ctx):
     await ctx.send(f"หนูอยู่ตรงนี้แล้วน้า~ พร้อมช่วยเสมอเลย {ctx.author.name} จ๋า~ 💖")
 
-
 @bot.command()
 async def test(ctx, arg):
     await ctx.send(f"มุแง~ หนูพิมพ์ตามละนะ: {arg} ✨")
 
-
-server_settings = {}
-
-# ✅ ตั้งค่าช่องต้อนรับ
+# ==============================
+# ⚙️ SERVER SETTINGS COMMANDS
+# ==============================
 @bot.command()
 async def set_welcome_channel(ctx, channel: discord.TextChannel):
-    """ ตั้งค่าช่องแจ้งเตือนต้อนรับ """
     if ctx.guild.id not in server_settings:
         server_settings[ctx.guild.id] = {}
     server_settings[ctx.guild.id]["welcome_channel"] = channel.id
     await ctx.send(f"✅ ตั้งค่าช่องต้อนรับเป็น {channel.mention} แล้ว!")
 
-# ✅ ตั้งค่าช่องแจ้งเตือนคนออก
 @bot.command()
 async def set_goodbye_channel(ctx, channel: discord.TextChannel):
-    """ ตั้งค่าช่องแจ้งเตือนสมาชิกออก """
     if ctx.guild.id not in server_settings:
         server_settings[ctx.guild.id] = {}
     server_settings[ctx.guild.id]["goodbye_channel"] = channel.id
     await ctx.send(f"✅ ตั้งค่าช่องแจ้งเตือนคนออกเป็น {channel.mention} แล้ว!")
 
-# ✅ ตั้งค่าช่องแจ้งเตือนการใช้เสียง
 @bot.command()
 async def set_voice_channel(ctx, channel: discord.TextChannel):
-    """ ตั้งค่าช่องแจ้งเตือนเข้า/ออกห้องเสียง """
     if ctx.guild.id not in server_settings:
         server_settings[ctx.guild.id] = {}
     server_settings[ctx.guild.id]["voice_channel"] = channel.id
     await ctx.send(f"✅ ตั้งค่าช่องแจ้งเตือนการใช้เสียงเป็น {channel.mention} แล้ว!")
 
-# ✅ ตรวจสอบค่าที่ตั้งไว้
 @bot.command()
 async def show_settings(ctx):
-    """ แสดงค่าการตั้งค่าของเซิร์ฟ """
     settings = server_settings.get(ctx.guild.id, {})
     welcome = f"<#{settings.get('welcome_channel', '❌ ไม่ได้ตั้งค่า')}>"
     goodbye = f"<#{settings.get('goodbye_channel', '❌ ไม่ได้ตั้งค่า')}>"
@@ -323,11 +282,10 @@ async def show_settings(ctx):
     embed.add_field(name="👋 ช่องต้อนรับ", value=welcome, inline=False)
     embed.add_field(name="💔 ช่องแจ้งเตือนออก", value=goodbye, inline=False)
     embed.add_field(name="🎤 ช่องแจ้งเตือนใช้เสียง", value=voice, inline=False)
-
     await ctx.send(embed=embed)
-    
+
 # ==============================
-# 🌀 RUN BOT
+# 💥 RUN THE BOT
 # ==============================
 server_on()
-bot.run(os.getenv('TOKEN'))
+bot.run(token)
