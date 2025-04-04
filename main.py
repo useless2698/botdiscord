@@ -220,6 +220,8 @@ async def namecommand(interaction: discord.Interaction, name: str):
 
 @bot.tree.command(name='help', description='แสดงคำสั่งบอท')
 async def helpcommand(interaction: discord.Interaction):
+    await interaction.response.defer()  # บอก Discord ว่ารอก่อนน้า
+
     thailand_time = datetime.now(timezone.utc) + timedelta(hours=7)
     formatted_time = thailand_time.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -234,7 +236,8 @@ async def helpcommand(interaction: discord.Interaction):
                     value="บอทนี้จะพูดแบบน่ารัก นุ่มฟู เหมือนสาวน้อยวัยใสค่ะ~ ลองเล่นกับเราเยอะๆ น้า~ งุงิ~ 💕",
                     inline=False)
     embed.set_footer(text=f"⌛ เวลาไทยตอนนี้: {formatted_time}")
-    await interaction.response.send_message(embed=embed)
+
+    await interaction.followup.send(embed=embed)  # ส่ง embed หลัง defer
 
 # ==============================
 # 🛠️ TEXT COMMANDS (PREFIX)
