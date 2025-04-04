@@ -10,7 +10,6 @@ from myserver import server_on
 
 bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
 
-TOKEN = ''
 
 @bot.event
 async def on_ready():
