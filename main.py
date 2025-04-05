@@ -11,20 +11,17 @@ from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 
 import json
-import os
-
 import discord
 from discord.ext import commands
 from discord import app_commands
 
-from myserver import server_on  # ส่วนนี้น่าจะเปิด web server (เช่น keep alive)
+from myserver import server_on  # ใช้สำหรับ run web server (เช่น keep alive)
 
 # ==============================
 # 🎀 LOAD .env AND TOKEN
 # ==============================
 dotenv_path = ".env"
 load_dotenv(dotenv_path)
-
 token = os.getenv("TOKEN")
 if token:
     print("TOKEN จาก .env คือ:", token)
@@ -32,18 +29,24 @@ else:
     print("ไม่พบค่า TOKEN ในไฟล์ .env")
 
 # ==============================
+# 🧠 โหลดข้อมูลที่เรียนรู้ไว้
+# ==============================
+learned = {}
+if os.path.exists("learned.json"):
+    with open("learned.json", "r", encoding="utf-8") as f:
+        learned = json.load(f)
+
+# ==============================
 # 🌸 DISCORD BOT SETUP
 # ==============================
 bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
 server_settings = {}
-
-print(sys.path)  # Debug path
+print(sys.path)
 
 # ==============================
 # 💖 FUNCTION: WELCOME IMAGE
 # ==============================
 def create_welcome_image(member):
-    """ สร้างรูปต้อนรับแบบน่ารัก 💕 """
     bg_path = "welcome_bg.jpg"
     font_path = "font.ttf"
     avatar_size = 150
@@ -78,10 +81,15 @@ async def on_ready():
     print(f"{len(synced)} command(s)")
 
 @bot.event
+async def on_ready():
+    await bot.tree.sync()
+    print(f"Logged in as {bot.user} (ID: {bot.user.id})")
+    print("------")
+
+@bot.event
 async def on_member_join(member):
     guild_id = member.guild.id
     welcome_channel_id = server_settings.get(guild_id, {}).get("welcome_channel")
-
     if welcome_channel_id:
         channel = bot.get_channel(welcome_channel_id)
         image_path = create_welcome_image(member)
@@ -95,7 +103,6 @@ async def on_member_join(member):
 async def on_member_remove(member):
     guild_id = member.guild.id
     goodbye_channel_id = server_settings.get(guild_id, {}).get("goodbye_channel")
-
     if goodbye_channel_id:
         channel = bot.get_channel(goodbye_channel_id)
         await channel.send(
@@ -105,15 +112,22 @@ async def on_member_remove(member):
 @bot.event
 async def on_voice_state_update(member, before, after):
     guild = member.guild
-    channel = discord.utils.get(guild.text_channels, name="voice-log")
+    settings = server_settings.get(guild.id, {})
+    voice_channel_id = settings.get("voice_channel")
+
+    if not voice_channel_id:
+        return  # ยังไม่ได้ตั้งค่าห้องแจ้งเตือนเสียง
+
+    channel = bot.get_channel(voice_channel_id)
     if not channel:
-        return
+        return  # หา channel ไม่เจอ
 
     nickname = member.display_name
     avatar_url = member.avatar.url if member.avatar else member.default_avatar.url
     time_now = datetime.now().strftime("%H:%M:%S")
 
     embed = discord.Embed(color=0xFFB6C1)
+
     if before.channel is None and after.channel is not None:
         embed.title = "🎧 เข้าห้องเสียงแล้ว~"
         embed.description = f"**{nickname}** ได้เข้าร่วมห้อง **{after.channel.name}** นะคะ~ 🎀"
@@ -126,6 +140,7 @@ async def on_voice_state_update(member, before, after):
     embed.set_thumbnail(url=avatar_url)
     embed.add_field(name="⏰ เวลา", value=f"{time_now} น.", inline=True)
     embed.set_footer(text="ขอให้สนุกกับเสียงน้า~ 💕")
+
     await channel.send(embed=embed)
 
 # ==============================
@@ -136,9 +151,11 @@ async def on_message(message):
     if message.author == bot.user:
         return
 
-    mes = message.content.lower()
+    user_input = message.content.strip()
+    mes = user_input.lower()
     greetings = ['สวัสดี', 'หวัดดี', 'ไฮๆ']
 
+    # ระบบพูดน่ารักๆ
     if mes in greetings:
         responses = [
             f"หวัดดีค่าา~ วันนี้อากาศดีเนอะ {message.author.name} ☀️",
@@ -179,6 +196,30 @@ async def on_message(message):
     elif 'อยู่ไหน' in mes:
         await message.channel.send("เราอยู่ในคลาวด์ลอยๆ น่ารักๆ แบบเมฆชมพูน้า~ ☁️💗")
 
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
+
+    content = message.content.strip()
+
+    if content.startswith("สอน หนูว่า "):
+        try:
+            data = content.replace("สอน หนูว่า ", "").split(" = ")
+            question = data[0].strip()
+            answer = data[1].strip()
+            learned[question] = answer
+            with open("learned.json", "w", encoding="utf-8") as f:
+                json.dump(learned, f, ensure_ascii=False, indent=4)
+            await message.channel.send("หนูจำได้แล้วค่ะ! ขอบคุณที่สอนนะคะ 💖")
+        except:
+            await message.channel.send("รูปแบบไม่ถูกต้องน้า ต้องเป็น `สอน หนูว่า คำถาม = คำตอบ` นะคะ~")
+        return
+
+    if content in learned:
+        await message.channel.send(learned[content])
+        return
+
     await bot.process_commands(message)
 
 # ==============================
@@ -188,7 +229,7 @@ async def on_message(message):
 async def jokecommand(interaction: discord.Interaction):
     jokes = [
         "ทำไมผีไม่กินข้าว? ... เพราะมันกลัว 'ข้าวผี'~ 👻🍚",
-        "ทำไมองคุลีมาร วิ่งไล่ตาม พระพุ?ะเจ้าไม่ทัน...เพราะคุณย่าเคยพูดเอาไว้ Clock up!!!",
+        "ทำไมองคุลีมาร วิ่งไล่ตามBudhaไม่ทัน...เพราะคุณย่าเคยพูดเอาไว้ Clock up!!!",
         "ทำไมเป็ดถึงไม่ชอบทะเล~? ... เพราะมันมีคลื่น (เครียด~ 😵‍💫) ฮิๆ~"
     ]
     await interaction.response.send_message(random.choice(jokes))
@@ -221,44 +262,88 @@ async def hellobot(interaction: discord.Interaction):
 async def namecommand(interaction: discord.Interaction, name: str):
     await interaction.response.send_message(f"ยินดีที่ได้รู้จักน้า~ {name} คุงง 💞")
 
-@bot.tree.command(name='help', description='แสดงคำสั่งบอท')
-async def helpcommand(interaction: discord.Interaction):
-    thailand_time = datetime.now(timezone.utc) + timedelta(hours=7)
-    formatted_time = thailand_time.strftime("%Y-%m-%d %H:%M:%S")
+@bot.tree.command(name="help", description="แสดงคำสั่งทั้งหมดของบอทสุดน่ารัก 💕")
+async def help_command(interaction: discord.Interaction):
+    guild_id = interaction.guild_id
+    settings = server_settings.get(guild_id, {})
 
     embed = discord.Embed(
-        title='✨ คำสั่งของสาวน้อยบอท ✨',
-        description='ฮัลโหล~ นี่คือคำสั่งทั้งหมดที่หนูทำได้น้า~ ลองเล่นดูได้นะพี่คะ! 💖',
-        color=0xFFC0CB
+        title="✨ คำสั่งของหนู ✨",
+        description="หนูสามารถทำสิ่งต่างๆ ได้ดังนี้เลยค่า~",
+        color=0xffc0cb
     )
+    embed.add_field(name="📚 เรียนรู้", value="`สอน หนูว่า คำถาม = คำตอบ`", inline=False)
+    embed.add_field(name="💬 ถาม-ตอบ", value="ถามอะไรก็ได้ที่หนูเรียนรู้มา~", inline=False)
+    embed.add_field(name="🛠️ ตั้งค่าห้อง", value="/ตั้งค่าห้องต้อนรับ\n/ตั้งค่าห้องลา\n/ตั้งค่าห้องแจ้งเตือนเสียง", inline=False)
 
-    embed.add_field(
-        name='🌟 คำสั่งพื้นฐาน (Prefix Commands)',
-        value="`!ช่วยด้วย`, `!test <ข้อความ>`, `!set_welcome_channel #ช่อง`, `!set_goodbye_channel #ช่อง`,\n"
-              "`!set_voice_channel #ช่อง`, `!show_settings`",
-        inline=False
-    )
+    if "welcome_channel" in settings:
+        embed.add_field(name="📥 ห้องต้อนรับ", value=f"<#{settings['welcome_channel']}>", inline=True)
+    if "goodbye_channel" in settings:
+        embed.add_field(name="📤 ห้องลา", value=f"<#{settings['goodbye_channel']}>", inline=True)
+    if "voice_channel" in settings:
+        embed.add_field(name="🎧 ห้องเสียง", value=f"<#{settings['voice_channel']}>", inline=True)
 
-    embed.add_field(
-        name='🎈 คำสั่ง Slash Commands',
-        value="`/hellobot`, `/name <ชื่อ>`, `/joke`, `/fact`, `/mood`, `/help`",
-        inline=False
-    )
+    # เพิ่มเวลาปัจจุบันด้วย
+    thai_time = datetime.now(timezone(timedelta(hours=7))).strftime("%H:%M:%S")
+    embed.set_footer(text=f"⌛ เวลาไทยตอนนี้: {thai_time}")
 
-    embed.add_field(
-        name='🎀 สไตล์ของสาวน้อยบอท 🎀',
-        value="บอทนี้จะพูดแบบน่ารัก นุ่มฟู เหมือนสาวน้อยวัยใสค่ะ~ ลองเล่นกับเราเยอะๆ น้า~ งุงิ~ 💕",
-        inline=False
-    )
-
-    embed.set_footer(text=f"⌛ เวลาไทยตอนนี้: {formatted_time}")
-
-    # ใช้ followup.send เพื่อหลีกเลี่ยงปัญหา interaction ตอบซ้ำ
     await interaction.followup.send(embed=embed)
-        
-        
+
+@bot.tree.command(name="helpme", description="ขอความช่วยเหลือจากสาวน้อย~")
+async def helpme_command(interaction: discord.Interaction):
+    await interaction.response.send_message(f"หนูอยู่ตรงนี้แล้วน้า~ พร้อมช่วยเสมอเลย {interaction.user.name} จ๋า~ 💖")
+
+@bot.tree.command(name="test", description="ทดสอบพิมพ์ข้อความกับสาวน้อย~")
+@app_commands.describe(arg="ข้อความที่อยากให้หนูพูด~")
+async def test_command(interaction: discord.Interaction, arg: str):
+    await interaction.response.send_message(f"มุแง~ หนูพิมพ์ตามละนะ: {arg} ✨")
+
 # ==============================
-# 🛠️ TEXT COMMANDS (PREFIX)
+# ⚙️ SERVER SETTINGS - Slash Versions
+# ==============================
+
+@bot.tree.command(name="ตั้งค่าห้องต้อนรับ", description="ตั้งค่าห้องต้อนรับสมาชิกใหม่~")
+@app_commands.describe(channel="เลือกห้องต้อนรับ")
+async def set_welcome_slash(interaction: discord.Interaction, channel: discord.TextChannel):
+    if interaction.guild.id not in server_settings:
+        server_settings[interaction.guild.id] = {}
+    server_settings[interaction.guild.id]["welcome_channel"] = channel.id
+    await interaction.response.send_message(f"✅ ตั้งค่าช่องต้อนรับเป็น {channel.mention} แล้ว!")
+
+@bot.tree.command(name="ตั้งค่าห้องลา", description="ตั้งค่าห้องแจ้งเตือนคนออกจากเซิร์ฟเวอร์")
+@app_commands.describe(channel="เลือกห้องลา")
+async def set_goodbye_slash(interaction: discord.Interaction, channel: discord.TextChannel):
+    if interaction.guild.id not in server_settings:
+        server_settings[interaction.guild.id] = {}
+    server_settings[interaction.guild.id]["goodbye_channel"] = channel.id
+    await interaction.response.send_message(f"✅ ตั้งค่าช่องแจ้งเตือนคนออกเป็น {channel.mention} แล้ว!")
+
+@bot.tree.command(name="ตั้งค่าห้องแจ้งเตือนเสียง", description="ตั้งค่าช่องสำหรับแจ้งเตือนการเข้า/ออกห้องเสียง")
+@app_commands.describe(channel="เลือกช่องที่ต้องการให้แจ้งเตือน")
+async def set_voice_slash(interaction: discord.Interaction, channel: discord.TextChannel):
+    await interaction.response.defer(thinking=False)  # ป้องกัน interaction timeout
+
+    if interaction.guild_id not in server_settings:
+        server_settings[interaction.guild_id] = {}
+    server_settings[interaction.guild_id]["voice_channel"] = channel.id
+
+    await interaction.followup.send(f"✅ ตั้งค่าช่องแจ้งเตือนการใช้เสียงเป็น {channel.mention} แล้ว!", ephemeral=False)
+
+@bot.tree.command(name="แสดงการตั้งค่า", description="ดูการตั้งค่าช่องต่างๆ ในเซิร์ฟนี้")
+async def show_settings_slash(interaction: discord.Interaction):
+    settings = server_settings.get(interaction.guild.id, {})
+    welcome = f"<#{settings.get('welcome_channel', '❌ ไม่ได้ตั้งค่า')}>"
+    goodbye = f"<#{settings.get('goodbye_channel', '❌ ไม่ได้ตั้งค่า')}>"
+    voice = f"<#{settings.get('voice_channel', '❌ ไม่ได้ตั้งค่า')}>"
+
+    embed = discord.Embed(title="🔧 การตั้งค่าของเซิร์ฟ", color=0xFFC0CB)
+    embed.add_field(name="👋 ช่องต้อนรับ", value=welcome, inline=False)
+    embed.add_field(name="💔 ช่องแจ้งเตือนออก", value=goodbye, inline=False)
+    embed.add_field(name="🎤 ช่องแจ้งเตือนใช้เสียง", value=voice, inline=False)
+    await interaction.response.send_message(embed=embed)
+    
+# ==============================
+# 🛠️ PREFIX COMMANDS
 # ==============================
 @bot.command()
 async def ช่วยด้วย(ctx):
@@ -268,32 +353,16 @@ async def ช่วยด้วย(ctx):
 async def test(ctx, arg):
     await ctx.send(f"มุแง~ หนูพิมพ์ตามละนะ: {arg} ✨")
 
-if os.path.exists("learned.json"):
-    with open("learned.json", "r", encoding="utf-8") as f:
-        learned_data = json.load(f)
-else:
-    learned_data = {}
-
-@bot.event
-async def on_message(message):
-    if message.author == bot.user:
-        return
-
-    user_input = message.content.strip()
-
-    # ถ้ามีคำตอบอยู่แล้วในฐานข้อมูล
-    if user_input in learned_data:
-        await message.channel.send(learned_data[user_input])
-    else:
-        await message.channel.send("หนูไม่เข้าใจค่ะ~ พิมพ์เป็นแบบนี้ได้น้า: `สอน หนูว่า <คำถาม> = <คำตอบ>`")
-
-    await bot.process_commands(message)
-
 @bot.command()
 async def สอน(ctx, *, arg):
     try:
         if "=" in arg:
             question, answer = map(str.strip, arg.split("=", 1))
+            if os.path.exists("learned.json"):
+                with open("learned.json", "r", encoding="utf-8") as f:
+                    learned_data = json.load(f)
+            else:
+                learned_data = {}
             learned_data[question] = answer
             with open("learned.json", "w", encoding="utf-8") as f:
                 json.dump(learned_data, f, ensure_ascii=False, indent=2)
@@ -302,9 +371,9 @@ async def สอน(ctx, *, arg):
             await ctx.send("พิมพ์แบบนี้น้า~ `สอน หนูว่า คำถาม = คำตอบ`")
     except Exception as e:
         await ctx.send(f"เกิดข้อผิดพลาดนิดนึงค่ะ: {e}")
-        
+
 # ==============================
-# ⚙️ SERVER SETTINGS COMMANDS
+# ⚙️ SERVER SETTINGS
 # ==============================
 @bot.command()
 async def set_welcome_channel(ctx, channel: discord.TextChannel):
@@ -341,7 +410,7 @@ async def show_settings(ctx):
     await ctx.send(embed=embed)
 
 # ==============================
-# 💥 RUN THE BOT
+# 💥 RUN BOT
 # ==============================
 server_on()
 bot.run(token)
