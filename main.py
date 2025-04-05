@@ -10,6 +10,9 @@ import requests
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 
+import json
+import os
+
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -249,8 +252,11 @@ async def helpcommand(interaction: discord.Interaction):
     )
 
     embed.set_footer(text=f"⌛ เวลาไทยตอนนี้: {formatted_time}")
-    await interaction.response.send_message(embed=embed)
 
+    # ใช้ followup.send เพื่อหลีกเลี่ยงปัญหา interaction ตอบซ้ำ
+    await interaction.followup.send(embed=embed)
+        
+        
 # ==============================
 # 🛠️ TEXT COMMANDS (PREFIX)
 # ==============================
@@ -262,6 +268,41 @@ async def ช่วยด้วย(ctx):
 async def test(ctx, arg):
     await ctx.send(f"มุแง~ หนูพิมพ์ตามละนะ: {arg} ✨")
 
+if os.path.exists("learned.json"):
+    with open("learned.json", "r", encoding="utf-8") as f:
+        learned_data = json.load(f)
+else:
+    learned_data = {}
+
+@bot.event
+async def on_message(message):
+    if message.author == bot.user:
+        return
+
+    user_input = message.content.strip()
+
+    # ถ้ามีคำตอบอยู่แล้วในฐานข้อมูล
+    if user_input in learned_data:
+        await message.channel.send(learned_data[user_input])
+    else:
+        await message.channel.send("หนูไม่เข้าใจค่ะ~ พิมพ์เป็นแบบนี้ได้น้า: `สอน หนูว่า <คำถาม> = <คำตอบ>`")
+
+    await bot.process_commands(message)
+
+@bot.command()
+async def สอน(ctx, *, arg):
+    try:
+        if "=" in arg:
+            question, answer = map(str.strip, arg.split("=", 1))
+            learned_data[question] = answer
+            with open("learned.json", "w", encoding="utf-8") as f:
+                json.dump(learned_data, f, ensure_ascii=False, indent=2)
+            await ctx.send(f"โอเคค่ะ! หนูจำไว้แล้วว่า '{question}' คือ '{answer}' 💖")
+        else:
+            await ctx.send("พิมพ์แบบนี้น้า~ `สอน หนูว่า คำถาม = คำตอบ`")
+    except Exception as e:
+        await ctx.send(f"เกิดข้อผิดพลาดนิดนึงค่ะ: {e}")
+        
 # ==============================
 # ⚙️ SERVER SETTINGS COMMANDS
 # ==============================
