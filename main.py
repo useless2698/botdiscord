@@ -81,6 +81,8 @@ async def on_ready():
     print(f"Logged in as {bot.user} (ID: {bot.user.id})")
     print("------")
 
+welcome_settings = {}
+
 @bot.event
 async def on_member_join(member):
     guild_id = member.guild.id
