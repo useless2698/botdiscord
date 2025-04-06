@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import os
 import sys
 import random
+import asyncio
 from datetime import datetime, timezone, timedelta
 import requests
 from io import BytesIO
@@ -233,12 +234,14 @@ async def on_message(message):
 # ==============================
 @bot.tree.command(name='joke', description='เรื่องตลกของสาวน้อย~')
 async def jokecommand(interaction: discord.Interaction):
+    await interaction.response.defer(thinking=True)  # แบบมี indicator loading
+    await asyncio.sleep(1)  # รอไม่เกิน 3 วิ!
     jokes = [
         "ทำไมผีไม่กินข้าว? ... เพราะมันกลัว 'ข้าวผี'~ 👻🍚",
         "ทำไมองคุลีมาร วิ่งไล่ตามBudhaไม่ทัน...เพราะคุณย่าเคยพูดเอาไว้ Clock up!!!",
         "ทำไมเป็ดถึงไม่ชอบทะเล~? ... เพราะมันมีคลื่น (เครียด~ 😵‍💫) ฮิๆ~"
     ]
-    await interaction.response.send_message(random.choice(jokes))
+    await interaction.followup.send(random.choice(jokes))
 
 @bot.tree.command(name='fact', description='สาระเล็กๆ จากสาวน้อย 🧠✨')
 async def factcommand(interaction: discord.Interaction):
@@ -280,7 +283,7 @@ async def help_command(interaction: discord.Interaction):
     )
     embed.add_field(name="📚 เรียนรู้", value="`สอน หนูว่า คำถาม = คำตอบ`", inline=False)
     embed.add_field(name="💬 ถาม-ตอบ", value="ถามอะไรก็ได้ที่หนูเรียนรู้มา~", inline=False)
-    embed.add_field(name="🛠️ ตั้งค่าห้อง", value="/ตั้งค่าห้องต้อนรับ\n/ตั้งค่าห้องลา\n/ตั้งค่าห้องแจ้งเตือนเสียง", inline=False)
+    embed.add_field(name="🛠️ ตั้งค่าห้อง", value="`/ตั้งค่าห้องต้อนรับ`\n`/ตั้งค่าห้องลา`\n`/ตั้งค่าห้องแจ้งเตือนเสียง`", inline=False)
 
     if "welcome_channel" in settings:
         embed.add_field(name="📥 ห้องต้อนรับ", value=f"<#{settings['welcome_channel']}>", inline=True)
@@ -293,7 +296,7 @@ async def help_command(interaction: discord.Interaction):
     thai_time = datetime.now(timezone(timedelta(hours=7))).strftime("%H:%M:%S")
     embed.set_footer(text=f"⌛ เวลาไทยตอนนี้: {thai_time}")
 
-    await interaction.followup.send(embed=embed)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="helpme", description="ขอความช่วยเหลือจากสาวน้อย~")
 async def helpme_command(interaction: discord.Interaction):
