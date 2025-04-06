@@ -1,20 +1,21 @@
 # ==============================
 # 🧁 IMPORT MODULES
 # ==============================
+import discord
+from discord.ext import commands
+from discord import app_commands
+from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 import os
 import sys
 import random
 import asyncio
-from datetime import datetime, timezone, timedelta
 import requests
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
-
 import json
-import discord
-from discord.ext import commands
-from discord import app_commands
+import aiohttp
+
 
 from myserver import server_on  # ใช้สำหรับ run web server (เช่น keep alive)
 
@@ -47,30 +48,35 @@ print(sys.path)
 # ==============================
 # 💖 FUNCTION: WELCOME IMAGE
 # ==============================
-def create_welcome_image(member):
-    bg_path = "welcome_bg.jpg"
-    font_path = "font.ttf"
-    avatar_size = 150
+welcome_messages = [
+    "ยินดีต้อนรับน้า~ ขอให้สนุกกับการอยู่ที่นี่น้า! 💕",
+    "หวัดดีจ้า~ เข้ามาแล้วอย่าลืมแนะนำตัวด้วยน้า! ✨",
+    "ว้าว~ มีเพื่อนใหม่เข้ามาอีกแล้ว ยินดีต้อนรับจ้า! 🌸",
+    "หวัดดีน้า~ มานั่งเล่นด้วยกันมั้ย? ☕"
+]
 
-    bg = Image.open(bg_path).convert("RGBA")
-    draw = ImageDraw.Draw(bg)
+async def create_welcome_image(member):
+    bg_url = "https://cdn.discordapp.com/attachments/1111111111111111111/1111111111111111111/background.jpg"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(bg_url) as resp:
+            if resp.status != 200:
+                return None
+            data = io.BytesIO(await resp.read())
 
-    avatar_url = member.avatar.url if member.avatar else member.default_avatar.url
-    response = requests.get(avatar_url)
-    avatar = Image.open(BytesIO(response.content)).convert("RGBA")
-    avatar = avatar.resize((avatar_size, avatar_size))
+    with Image.open(data).convert("RGBA") as base:
+        draw = ImageDraw.Draw(base)
+        font = ImageFont.truetype("arial.ttf", 40)
+        text = f"Welcome, {member.name}!"
+        text_width, text_height = draw.textsize(text, font=font)
+        x = (base.width - text_width) // 2
+        y = base.height - text_height - 50
+        draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
 
-    mask = Image.new("L", (avatar_size, avatar_size), 0)
-    mask_draw = ImageDraw.Draw(mask)
-    mask_draw.ellipse((0, 0, avatar_size, avatar_size), fill=255)
-    bg.paste(avatar, (200, 50), mask)
+        with io.BytesIO() as image_binary:
+            base.save(image_binary, 'PNG')
+            image_binary.seek(0)
+            return discord.File(fp=image_binary, filename='welcome.png')
 
-    font = ImageFont.truetype(font_path, 40)
-    draw.text((180, 220), f"Welcome {member.display_name}!", font=font, fill="white")
-
-    img_path = f"welcome_{member.id}.png"
-    bg.save(img_path)
-    return img_path
 
 # ==============================
 # 🌟 BOT EVENTS
@@ -89,12 +95,12 @@ async def on_member_join(member):
     welcome_channel_id = server_settings.get(guild_id, {}).get("welcome_channel")
     if welcome_channel_id:
         channel = bot.get_channel(welcome_channel_id)
-        image_path = create_welcome_image(member)
-        file = discord.File(image_path, filename="welcome.png")
-        await channel.send(
-            f"🎉 {member.mention} joined the server! 🌟\nNow we have {member.guild.member_count} members!",
-            file=file
-        )
+        file = await create_welcome_image(member)
+        if file:
+            await channel.send(
+                f"🎉 {member.mention} joined the server! 🌟\nNow we have {member.guild.member_count} members!",
+                file=file
+            )
 
 @bot.event
 async def on_member_remove(member):
@@ -303,7 +309,7 @@ async def moodcommand(interaction: discord.Interaction):
         "วันนี้อารมณ์ดีมากเลยล่ะ~ เหมาะกับการนั่งฟังเพลงหวานๆ 🍓🎶",
         "อื้ออ... รู้สึกขี้เกียจนิดหน่อย แต่ก็ยังยิ้มได้นะ~ 😴🌸",
         "มู้ดตอนนี้คือแบบ... อยากกินขนมแล้วก็กอดใครสักคนเลย~ 🍩💞",
-        "สดใสมั่กๆ เหมือนแดดช่วงเช้าเลยค่ะ~ ☀️✨"
+        "สดใสมั่กๆ เหมือนแดดช่วงเช้าเลยค่ะ~ ☀️✨",
         "มู้ดนุ่มฟู~ เหมือนกอดตุ๊กตาอุ่นๆ เลยค่า 🧸💗",
         "อารมณ์น่ารักแบบนี้ อยากส่งพลังบวกให้ทุกคนเลย~ ⚡🌈",
         "มีความสุขเหมือนตอนเจอกาชา SSR เลยค่ะ~ ✨📦",
