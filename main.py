@@ -134,6 +134,12 @@ async def on_voice_state_update(member, before, after):
     elif before.channel is not None and after.channel is None:
         embed.title = "🚪 ออกจากห้องเสียงแล้ว~"
         embed.description = f"**{nickname}** ออกจากห้อง **{before.channel.name}** ไปแล้วน้า~ 😢"
+    elif before.channel != after.channel:
+        embed.title = "➡️ ย้ายห้องเสียงแล้ว~"
+        embed.description = (
+            f"**{nickname}** ย้ายจากห้อง **{before.channel.name}** ไปที่ **{after.channel.name}** ค่า~ 🔄"
+        )    
+    
     else:
         return
 
