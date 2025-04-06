@@ -77,12 +77,6 @@ def create_welcome_image(member):
 # ==============================
 @bot.event
 async def on_ready():
-    print("Bot online!")
-    synced = await bot.tree.sync()
-    print(f"{len(synced)} command(s)")
-
-@bot.event
-async def on_ready():
     await bot.tree.sync()
     print(f"Logged in as {bot.user} (ID: {bot.user.id})")
     print("------")
@@ -127,19 +121,22 @@ async def on_voice_state_update(member, before, after):
     avatar_url = member.avatar.url if member.avatar else member.default_avatar.url
     time_now = datetime.now().strftime("%H:%M:%S")
 
-    embed = discord.Embed(color=0xFFB6C1)
+    embed = discord.Embed()
 
     if before.channel is None and after.channel is not None:
-        embed.title = "🎧 เข้าห้องเสียงแล้ว~"
+        embed.title = "🎧 เข้าห้องเสียงแล้วค่า~"
         embed.description = f"**{nickname}** ได้เข้าร่วมห้อง **{after.channel.name}** นะคะ~ 🎀"
+        embed.color = 0x6DFFEC
     elif before.channel is not None and after.channel is None:
-        embed.title = "🚪 ออกจากห้องเสียงแล้ว~"
+        embed.title = "🚪 ออกจากห้องเสียงแล้วง่าา~"
         embed.description = f"**{nickname}** ออกจากห้อง **{before.channel.name}** ไปแล้วน้า~ 😢"
+        embed.color = 0xFF5555
     elif before.channel != after.channel:
-        embed.title = "➡️ ย้ายห้องเสียงแล้ว~"
+        embed.title = "➡️ ย้ายห้องเสียงไปแย้วว~"
         embed.description = (
             f"**{nickname}** ย้ายจากห้อง **{before.channel.name}** ไปที่ **{after.channel.name}** ค่า~ 🔄"
         )    
+        embed.color = 0xFFE555
     
     else:
         return
@@ -328,10 +325,24 @@ async def moodcommand(interaction: discord.Interaction):
 async def hellobot(interaction: discord.Interaction):
     await interaction.response.send_message("หวัดดีจ้า~ มีอะไรให้สาวน้อยช่วยมั้ยน้า~? 💕")
 
+
+user_names = {}
+
 @bot.tree.command(name='name', description='แนะนำตัวให้หน่อยสิ~')
 @app_commands.describe(name="ชื่ออะไรจ๊ะ?")
 async def namecommand(interaction: discord.Interaction, name: str):
+    user_names[interaction.user.id] = name
     await interaction.response.send_message(f"ยินดีที่ได้รู้จักน้า~ {name} คุงง 💞")
+    
+@bot.tree.command(name='greet', description='ทักทายพร้อมเรียกชื่อที่จำได้!')
+async def greet(interaction: discord.Interaction):
+    # ตรวจสอบว่าเก็บชื่อผู้ใช้ไว้ไหม
+    user_id = interaction.user.id
+    if user_id in user_names:
+        name = user_names[user_id]
+        await interaction.response.send_message(f"หวัดดี {name} คุงง~ มีอะไรให้ช่วยมั้ยค่าา? 💖")
+    else:
+        await interaction.response.send_message("สวัสดีค่าา! ขอทราบชื่อหน่อยจิ~ 🌸")
 
 @bot.tree.command(name="help", description="แสดงคำสั่งทั้งหมดของบอทสุดน่ารัก 💕")
 async def help_command(interaction: discord.Interaction):
