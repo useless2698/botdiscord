@@ -45,6 +45,8 @@ bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
 server_settings = {}
 print(sys.path)
 
+CONFIG_FILE = "config.json"
+
 # ==============================
 # 💖 FUNCTION: WELCOME IMAGE
 # ==============================
@@ -55,28 +57,53 @@ welcome_messages = [
     "หวัดดีน้า~ มานั่งเล่นด้วยกันมั้ย? ☕"
 ]
 
-async def create_welcome_image(member):
-    bg_url = "https://cdn.discordapp.com/attachments/1111111111111111111/1111111111111111111/background.jpg"
-    async with aiohttp.ClientSession() as session:
-        async with session.get(bg_url) as resp:
-            if resp.status != 200:
-                return None
-            data = io.BytesIO(await resp.read())
+def load_config():
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
 
-    with Image.open(data).convert("RGBA") as base:
-        draw = ImageDraw.Draw(base)
-        font = ImageFont.truetype("arial.ttf", 40)
-        text = f"Welcome, {member.name}!"
-        text_width, text_height = draw.textsize(text, font=font)
-        x = (base.width - text_width) // 2
-        y = base.height - text_height - 50
-        draw.text((x, y), text, font=font, fill=(255, 255, 255, 255))
+def save_config(data):
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
 
-        with io.BytesIO() as image_binary:
-            base.save(image_binary, 'PNG')
-            image_binary.seek(0)
-            return discord.File(fp=image_binary, filename='welcome.png')
+config_data = load_config()
 
+@bot.event
+async def on_ready():
+    await bot.tree.sync()
+    print(f"✅ Logged in as {bot.user}!")
+    print("✨ Bot is ready and commands are synced.")
+
+@bot.tree.command(name="set_welcome_channel", description="ตั้งค่าห้องสำหรับต้อนรับสมาชิกใหม่")
+@app_commands.describe(channel="เลือกห้องที่จะให้บอทต้อนรับ")
+async def set_welcome_channel(interaction: discord.Interaction, channel: discord.TextChannel):
+    guild_id = str(interaction.guild.id)
+    if guild_id not in config_data:
+        config_data[guild_id] = {}
+    config_data[guild_id]["channel_id"] = channel.id
+    save_config(config_data)
+    await interaction.response.send_message(f"📝 ตั้งค่าห้องต้อนรับเรียบร้อยแล้ว: {channel.mention}", ephemeral=True)
+
+@bot.tree.command(name="set_welcome_image", description="ตั้งข้อความต้อนรับและภาพพื้นหลัง")
+@app_commands.describe(message="ข้อความต้อนรับ", image="แนบภาพพื้นหลังสำหรับป้ายต้อนรับ")
+async def set_welcome_image(interaction: discord.Interaction, message: str, image: discord.Attachment = None):
+    guild_id = str(interaction.guild.id)
+    if guild_id not in config_data:
+        config_data[guild_id] = {}
+
+    config_data[guild_id]["message"] = message
+
+    if image:
+        image_bytes = await image.read()
+        image_path = f"backgrounds/{guild_id}.png"
+        os.makedirs("backgrounds", exist_ok=True)
+        with open(image_path, "wb") as f:
+            f.write(image_bytes)
+        config_data[guild_id]["bg_image"] = image_path
+
+    save_config(config_data)
+    await interaction.response.send_message("🎉 อัปเดตข้อความและภาพพื้นหลังเรียบร้อยแล้ว!", ephemeral=True)
 
 # ==============================
 # 🌟 BOT EVENTS
@@ -91,27 +118,102 @@ welcome_settings = {}
 
 @bot.event
 async def on_member_join(member):
-    guild_id = member.guild.id
-    welcome_channel_id = server_settings.get(guild_id, {}).get("welcome_channel")
-    if welcome_channel_id:
-        channel = bot.get_channel(welcome_channel_id)
-        file = await create_welcome_image(member)
-        if file:
-            await channel.send(
-                f"🎉 {member.mention} joined the server! 🌟\nNow we have {member.guild.member_count} members!",
-                file=file
-            )
+    guild_id = str(member.guild.id)
+    guild_config = config_data.get(guild_id)
+    if not guild_config:
+        return
 
+    channel = bot.get_channel(guild_config.get("channel_id"))
+    if not channel:
+        return
+
+    message = guild_config.get("message", "Welcome to the server!")
+    bg_path = guild_config.get("bg_image", "default.png")
+
+    # สร้าง welcome image
+    background = Image.open(bg_path).convert("RGBA")
+
+    # ดึง avatar
+    avatar_asset = member.display_avatar.replace(size=256)
+    buffer_avatar = BytesIO(await avatar_asset.read())
+    avatar_img = Image.open(buffer_avatar).convert("RGBA")
+    avatar_img = avatar_img.resize((180, 180))
+
+    # สร้างวงกลมโปรไฟล์
+    mask = Image.new("L", (180, 180), 0)
+    draw = ImageDraw.Draw(mask)
+    draw.ellipse((0, 0, 180, 180), fill=255)
+    avatar_img.putalpha(mask)
+
+    # แปะ avatar
+    avatar_x = int(background.width / 2 - 90)
+    background.paste(avatar_img, (avatar_x, 50), avatar_img)
+
+    # เขียนข้อความ
+    draw = ImageDraw.Draw(background)
+    font_title = ImageFont.truetype("arial.ttf", 40)
+    font_small = ImageFont.truetype("arial.ttf", 28)
+
+    name_text = f"{member.name}#{member.discriminator}"
+    draw.text((50, 260), name_text, font=font_title, fill="white")
+    draw.text((50, 310), message, font=font_small, fill="white")
+
+    # ส่งรูป
+    with BytesIO() as image_binary:
+        background.save(image_binary, 'PNG')
+        image_binary.seek(0)
+        file = discord.File(fp=image_binary, filename='welcome.png')
+        await channel.send(content=f"🎊 ยินดีต้อนรับ {member.mention}!", file=file)
+        
 @bot.event
 async def on_member_remove(member):
-    guild_id = member.guild.id
-    goodbye_channel_id = server_settings.get(guild_id, {}).get("goodbye_channel")
-    if goodbye_channel_id:
-        channel = bot.get_channel(goodbye_channel_id)
-        await channel.send(
-            f"💔 {member.display_name} has left the server...\nNow we have {member.guild.member_count} members left."
-        )
+    guild_id = str(member.guild.id)
+    guild_config = config_data.get(guild_id)
+    if not guild_config:
+        return
 
+    channel = bot.get_channel(guild_config.get("channel_id"))
+    if not channel:
+        return
+
+    message = guild_config.get("message", "Welcome to the server!")
+    bg_path = guild_config.get("bg_image", "default.png")
+
+    # สร้าง welcome image
+    background = Image.open(bg_path).convert("RGBA")
+
+    # ดึง avatar
+    avatar_asset = member.display_avatar.replace(size=256)
+    buffer_avatar = BytesIO(await avatar_asset.read())
+    avatar_img = Image.open(buffer_avatar).convert("RGBA")
+    avatar_img = avatar_img.resize((180, 180))
+
+    # สร้างวงกลมโปรไฟล์
+    mask = Image.new("L", (180, 180), 0)
+    draw = ImageDraw.Draw(mask)
+    draw.ellipse((0, 0, 180, 180), fill=255)
+    avatar_img.putalpha(mask)
+
+    # แปะ avatar
+    avatar_x = int(background.width / 2 - 90)
+    background.paste(avatar_img, (avatar_x, 50), avatar_img)
+
+    # เขียนข้อความ
+    draw = ImageDraw.Draw(background)
+    font_title = ImageFont.truetype("arial.ttf", 40)
+    font_small = ImageFont.truetype("arial.ttf", 28)
+
+    name_text = f"{member.name}#{member.discriminator}"
+    draw.text((50, 260), name_text, font=font_title, fill="white")
+    draw.text((50, 310), message, font=font_small, fill="white")
+
+    # ส่งรูป
+    with BytesIO() as image_binary:
+        background.save(image_binary, 'PNG')
+        image_binary.seek(0)
+        file = discord.File(fp=image_binary, filename='welcome.png')
+        await channel.send(content=f"ไว้เจอกันใหม่น้าา 😢 {member.mention}!", file=file)
+        
 @bot.event
 async def on_voice_state_update(member, before, after):
     guild = member.guild
